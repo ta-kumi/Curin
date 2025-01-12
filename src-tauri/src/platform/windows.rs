@@ -1,3 +1,4 @@
+
 use windows::Win32::Foundation::POINT;
 use windows::Win32::UI::WindowsAndMessaging::{
     GetCursorPos, SetCursorPos, SystemParametersInfoW, SPIF_SENDCHANGE, SPI_GETACTIVEWINDOWTRACKING, SPI_GETACTIVEWNDTRKTIMEOUT, SPI_GETACTIVEWNDTRKZORDER, SPI_SETACTIVEWINDOWTRACKING, SPI_SETACTIVEWNDTRKTIMEOUT, SPI_SETACTIVEWNDTRKZORDER
@@ -7,20 +8,25 @@ use super::FocusControllerTrait;
 
 pub struct FocusController {
     orgin_window_tracking_config: bool,
+    orgin_window_tracking_front_config: bool,
     orgin_window_tracking_delay_config: u64,
 }
 
 impl FocusControllerTrait for FocusController {
     fn initialize(&mut self) {
         self.orgin_window_tracking_config = FocusController::get_window_tracking_config();
+        self.orgin_window_tracking_front_config =
+            FocusController::get_window_tracking_front_config();
         self.orgin_window_tracking_delay_config =
             FocusController::get_window_tracking_delay_config();
 
         FocusController::set_window_tracking_config(true);
+        FocusController::set_window_tracking_front_config(false);
         FocusController::set_window_tracking_delay_config(100);
     }
     fn finalize(&mut self) {
         FocusController::set_window_tracking_config(self.orgin_window_tracking_config);
+        FocusController::set_window_tracking_front_config(self.orgin_window_tracking_front_config);
         FocusController::set_window_tracking_delay_config(self.orgin_window_tracking_delay_config);
     }
 
@@ -42,6 +48,7 @@ impl FocusController {
     pub fn new() -> Self {
         Self {
             orgin_window_tracking_config: false,
+            orgin_window_tracking_front_config: false,
             orgin_window_tracking_delay_config: 0,
         }
     }
@@ -82,6 +89,46 @@ impl FocusController {
             Ok(_) => {}
             Err(_) => {
                 panic!("Failed to set window tracking");
+            }
+        }
+    }
+
+    fn get_window_tracking_front_config() -> bool {
+        let mut enable = 0;
+
+        let ret = unsafe {
+            SystemParametersInfoW(
+                SPI_GETACTIVEWNDTRKZORDER,
+                0,
+                Some(&mut enable as *mut i32 as *mut core::ffi::c_void),
+                SPIF_SENDCHANGE,
+            )
+        };
+
+        match ret {
+            Ok(_) => {}
+            Err(_) => {
+                panic!("Failed to get window tracking front");
+            }
+        }
+
+        enable == 1
+    }
+    fn set_window_tracking_front_config(enable: bool) {
+        let enable = if enable { 1 } else { 0 };
+
+        let ret = unsafe {
+            SystemParametersInfoW(
+                SPI_SETACTIVEWNDTRKZORDER,
+                0,
+                Some(enable as *mut core::ffi::c_void),
+                SPIF_SENDCHANGE,
+            )
+        };
+        match ret {
+            Ok(_) => {}
+            Err(_) => {
+                panic!("Failed to set window tracking front");
             }
         }
     }
@@ -175,6 +222,22 @@ mod tests {
 
     #[test]
     #[serial]
+    fn set_and_get_window_traking_front_config() {
+        let org_wtfc = FocusController::get_window_tracking_front_config();
+
+        FocusController::set_window_tracking_front_config(false);
+        wait_for_settings_effected();
+        assert!(!FocusController::get_window_tracking_front_config());
+
+        FocusController::set_window_tracking_front_config(true);
+        wait_for_settings_effected();
+        assert!(FocusController::get_window_tracking_front_config());
+
+        FocusController::set_window_tracking_front_config(org_wtfc);
+    }
+
+    #[test]
+    #[serial]
     fn set_and_get_window_tracking_delay_config() {
         let org_wtdc = FocusController::get_window_tracking_delay_config();
 
@@ -219,17 +282,20 @@ mod tests {
     #[serial]
     fn finalize() {
         let org_wtc = FocusController::get_window_tracking_config();
+        let org_wtfc = FocusController::get_window_tracking_front_config();
         let org_wtdc = FocusController::get_window_tracking_delay_config();
 
         let mut fc = FocusController::new();
 
         fc.initialize();
         FocusController::set_window_tracking_config(!org_wtc);
+        FocusController::set_window_tracking_front_config(!org_wtfc);
         FocusController::set_window_tracking_delay_config(org_wtdc + 100);
 
         fc.finalize();
         wait_for_settings_effected();
         assert_eq!(FocusController::get_window_tracking_config(), org_wtc);
+        assert_eq!(FocusController::get_window_tracking_front_config(), org_wtfc);
         assert_eq!(
             FocusController::get_window_tracking_delay_config(),
             org_wtdc
