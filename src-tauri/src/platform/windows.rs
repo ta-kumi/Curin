@@ -1,8 +1,6 @@
 use windows::Win32::Foundation::POINT;
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetCursorPos, SetCursorPos, SystemParametersInfoW, SPIF_SENDCHANGE,
-    SPI_GETACTIVEWINDOWTRACKING, SPI_GETACTIVEWNDTRKTIMEOUT, SPI_SETACTIVEWINDOWTRACKING,
-    SPI_SETACTIVEWNDTRKTIMEOUT,
+    GetCursorPos, SetCursorPos, SystemParametersInfoW, SPIF_SENDCHANGE, SPI_GETACTIVEWINDOWTRACKING, SPI_GETACTIVEWNDTRKTIMEOUT, SPI_GETACTIVEWNDTRKZORDER, SPI_SETACTIVEWINDOWTRACKING, SPI_SETACTIVEWNDTRKTIMEOUT, SPI_SETACTIVEWNDTRKZORDER
 };
 
 use super::FocusControllerTrait;
@@ -153,52 +151,72 @@ impl FocusController {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serial_test::serial;
+
+    fn wait_for_settings_effected() {
+        std::thread::sleep(std::time::Duration::from_millis(100));
+    }
 
     #[test]
+    #[serial]
     fn set_and_get_window_traking_config() {
+        let org_wtc = FocusController::get_window_tracking_config();
+
         FocusController::set_window_tracking_config(false);
-        std::thread::sleep(std::time::Duration::from_millis(300));
+        wait_for_settings_effected();
         assert!(!FocusController::get_window_tracking_config());
 
         FocusController::set_window_tracking_config(true);
-        std::thread::sleep(std::time::Duration::from_millis(300));
+        wait_for_settings_effected();
         assert!(FocusController::get_window_tracking_config());
+
+        FocusController::set_window_tracking_config(org_wtc);
     }
 
     #[test]
+    #[serial]
     fn set_and_get_window_tracking_delay_config() {
+        let org_wtdc = FocusController::get_window_tracking_delay_config();
+
         FocusController::set_window_tracking_delay_config(0);
-        std::thread::sleep(std::time::Duration::from_millis(300));
+        wait_for_settings_effected();
         assert_eq!(FocusController::get_window_tracking_delay_config(), 0);
 
         FocusController::set_window_tracking_delay_config(100);
-        std::thread::sleep(std::time::Duration::from_millis(300));
+        wait_for_settings_effected();
         assert_eq!(FocusController::get_window_tracking_delay_config(), 100);
+
+        FocusController::set_window_tracking_delay_config(org_wtdc);
     }
 
     #[test]
+    #[serial]
     fn set_and_get_cursor_pos() {
         let org_pos = FocusController::get_cursor_pos();
 
         FocusController::set_cursor_pos(POINT { x: 100, y: 100 });
-        std::thread::sleep(std::time::Duration::from_millis(300));
         let pos = FocusController::get_cursor_pos();
+        wait_for_settings_effected();
         assert_eq!(pos, POINT { x: 100, y: 100 });
 
         FocusController::set_cursor_pos(org_pos);
     }
 
     #[test]
+    #[serial]
     fn initalize() {
         let mut fc = FocusController::new();
         fc.initialize();
 
-        std::thread::sleep(std::time::Duration::from_millis(300));
+        wait_for_settings_effected();
         assert!(FocusController::get_window_tracking_config());
         assert_eq!(FocusController::get_window_tracking_delay_config(), 100);
+
+        fc.finalize();
     }
 
     #[test]
+    #[serial]
     fn finalize() {
         let org_wtc = FocusController::get_window_tracking_config();
         let org_wtdc = FocusController::get_window_tracking_delay_config();
@@ -210,7 +228,7 @@ mod tests {
         FocusController::set_window_tracking_delay_config(org_wtdc + 100);
 
         fc.finalize();
-        std::thread::sleep(std::time::Duration::from_millis(300));
+        wait_for_settings_effected();
         assert_eq!(FocusController::get_window_tracking_config(), org_wtc);
         assert_eq!(
             FocusController::get_window_tracking_delay_config(),
@@ -219,18 +237,28 @@ mod tests {
     }
 
     #[test]
+    #[serial]
     fn focus_on() {
         let mut fc = FocusController::new();
+        fc.initialize();
+
         fc.focus_on();
-        std::thread::sleep(std::time::Duration::from_millis(300));
+        wait_for_settings_effected();
         assert!(FocusController::get_window_tracking_config());
+
+        fc.finalize();
     }
 
     #[test]
-    fn tfocus_off() {
+    #[serial]
+    fn focus_off() {
         let mut fc = FocusController::new();
+        fc.initialize();
+
         fc.focus_off();
-        std::thread::sleep(std::time::Duration::from_millis(300));
+        wait_for_settings_effected();
         assert!(!FocusController::get_window_tracking_config());
+
+        fc.initialize();
     }
 }
