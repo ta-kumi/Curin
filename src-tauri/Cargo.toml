@@ -1,6 +1,6 @@
 [package]
 name = "curin"
-version = "0.1.0"
+version = "0.1.1"
 description = "This software automatically focuses the window under the cursor without bringing it to the front."
 authors = ["ta-kumi"]
 license = "MIT"
